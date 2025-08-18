@@ -17,14 +17,15 @@ const CharacterScene := preload("res://scenes/Character.tscn")
 @onready var ui: Control = $HUD/UI
 @onready var residents_root: Node2D = $Residents
 
+# Direction unit vectors (N, E, S, W)
+const DIR4 := [Vector2i(0,-1), Vector2i(1,0), Vector2i(0,1), Vector2i(-1,0)]
+
 var credits: int
 var is_panning := false
 var pan_origin_screen := Vector2.ZERO
 var cam_origin := Vector2.ZERO
 
 var hall_cells: Dictionary = {}                 # cell(Vector2i)->true
-var resident_cap_per_hab: int = 2
-var income_per_shop: int = 6
 var upkeep_per_resident: int = 1
 var tick_interval_s: float = 2.0
 var _tick_timer: Timer
@@ -35,7 +36,7 @@ var occupied: Dictionary = {}
 var defs := BuildDefs.all()
 var current_id := "HALL"
 var current_rot := 0               # 0,1,2,3 = 0°,90°,180°,270°
-var NONE := "NONE"                 # new
+var NONE := "NONE"
 
 var ghost: Node2D = GhostPreview.new()
 
@@ -77,9 +78,8 @@ func _ready() -> void:
 	add_child(ghost)
 	_update_ghost_def()
 
-	_refresh_hall_set()         # build initial empty set
 	_start_timers()
-	spawn_resident()   # starting resident (comment this out if you want zero random walkers)
+	spawn_resident()   # starting resident (comment out to start empty)
 
 func _process(_dt: float) -> void:
 	if not ghost.visible:
@@ -95,13 +95,13 @@ func _process(_dt: float) -> void:
 	var ok := (can_delete_at(origin_cell) if current_id == "ERASE" else can_place_at(origin_cell, current_id, current_rot))
 	ghost.call("set_valid", ok)
 
-func _on_choose_blueprint(id: String) -> void:
-	# toggle off if clicking the same tool again
-	if current_id == id:
-		current_id = NONE
-	else:
-		current_id = id
-	# update ghost (or hide if NONE)
+func _on_choose_blueprint(id: String) -> void: 
+	# toggle off if clicking the same tool again 
+	if current_id == id: 
+		current_id = NONE 
+	else: 
+		current_id = id 
+	# update ghost (or hide if NONE) 
 	_update_ghost_def()
 
 func _update_ghost_def() -> void:
@@ -137,8 +137,7 @@ func has_any_modules() -> bool:
 	return occupied.size() > 0
 
 func any_neighbor_hall(cell: Vector2i) -> bool:
-	var dirs: Array[Vector2i] = [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]
-	for d in dirs:
+	for d in DIR4:
 		var n: Vector2i = cell + d
 		if occupied.has(n) and occupied[n]["type"] == "hall":
 			return true
@@ -215,7 +214,7 @@ func _spawn_ship_for_dock(dock_node: Node2D) -> void:
 
 	var ship: Node2D = ShipScene.instantiate()
 	ship.global_position = spawn
-	ship.set_route(dock_pos, depart)   # <-- new API
+	ship.set_route(dock_pos, depart)   # <-- expected API on Ship.gd
 	add_child(ship)
 	ship.connect("departed", func():
 		if dock_state.has(dock_node):
@@ -260,8 +259,8 @@ func _spawn_ship_for_dock(dock_node: Node2D) -> void:
 		add_child(ch)
 	)
 
-# Direction unit vectors for N,E,S,W
 func _dir4(d: int) -> Vector2i:
+	# integer direction to unit vector (N,E,S,W)
 	match d % 4:
 		0: return Vector2i(0, -1)  # N
 		1: return Vector2i(1, 0)   # E
@@ -421,8 +420,7 @@ func can_place_at(origin: Vector2i, id: String, rot: int) -> bool:
 	return false
 
 func _cell_neighbors_anything(cell: Vector2i) -> bool:
-	var dirs: Array[Vector2i] = [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]
-	for d in dirs:
+	for d in DIR4:
 		var n: Vector2i = cell + d
 		if occupied.has(n): return true
 	return false
@@ -446,41 +444,38 @@ func refresh_hall_visuals() -> void:
 		if "set_mask" in node:
 			node.set_mask(m)
 
-func place(id: String, origin: Vector2i, rot: int) -> void:
+# ---------- Instantiation (single source of truth) ----------
+func _instantiate_register(id: String, origin: Vector2i, rot: int) -> Node2D:
 	var d: Dictionary = defs[id]
-	if credits < d.get("cost", 0): return
-	if not can_place_at(origin, id, rot): return
-
 	var inst: Node2D = d["scene"].instantiate()
-	var size_cells := rotated_size(id, rot)
-	var top_left := cell_to_world_top_left(origin)
-	var size_px := Vector2(size_cells.x * cell_size, size_cells.y * cell_size)
+	var size: Vector2i = rotated_size(id, rot)
+	var top_left: Vector2 = cell_to_world_top_left(origin)
+	var size_px: Vector2 = Vector2(size.x * cell_size, size.y * cell_size)
 	inst.position = top_left + size_px * 0.5
 	inst.set("cell_size", cell_size)
-	if "size_cells" in inst: inst.size_cells = size_cells
+	if "size_cells" in inst:
+		inst.size_cells = size
+
+	# core metas
+	inst.set_meta("id", id)
+	inst.set_meta("origin", {"x": origin.x, "y": origin.y})
+	inst.set_meta("rot", rot)
+
+	# sensible defaults if not already present
+	if not inst.has_meta("level"):
+		inst.set_meta("level", 1)
+	if id == "HAB" and not inst.has_meta("beds"):
+		inst.set_meta("beds", 2)
+	if id == "SHOP" and not inst.has_meta("income"):
+		inst.set_meta("income", 6)
+	if id == "DOCK" and not inst.has_meta("turnaround"):
+		inst.set_meta("turnaround", 1)
 
 	inst.queue_redraw()
 	modules_root.add_child(inst)
 
-	for c in cells_for(origin, size_cells):
+	for c in cells_for(origin, size):
 		occupied[c] = {"id": id, "node": inst, "type": d["type"], "rot": rot}
-
-	credits -= d.get("cost", 0)
-	ui.call("set_credits", credits)
-	refresh_hall_visuals()
-
-	inst.set_meta("id", id)
-	inst.set_meta("origin", {"x": origin.x, "y": origin.y})
-	inst.set_meta("rot", rot)
-	if not inst.has_meta("level"):
-		inst.set_meta("level", 1)
-		match id:
-			"HAB":
-				inst.set_meta("beds", 2)     # used for capacity, upgrades bump this
-			"SHOP":
-				inst.set_meta("income", 6)   # used for economy tick, upgrades bump this
-			"DOCK":
-				inst.set_meta("turnaround", 1)  # placeholder if you want dock upgrades
 
 	if d["type"] == "dock":
 		if "approach_dir" in inst:
@@ -488,10 +483,27 @@ func place(id: String, origin: Vector2i, rot: int) -> void:
 		dock_records.append({
 			"node": inst,
 			"origin": origin,
-			"size": rotated_size(id, rot),
+			"size": size,
 			"dir": dock_space_side(rot)
 		})
 		_start_dock_timer(inst)
+
+	return inst
+
+func place(id: String, origin: Vector2i, rot: int) -> void:
+	var d: Dictionary = defs[id]
+	if credits < d.get("cost", 0): return
+	if not can_place_at(origin, id, rot): return
+
+	credits -= d.get("cost", 0)
+	ui.call("set_credits", credits)
+
+	_instantiate_register(id, origin, rot)
+	refresh_hall_visuals()
+
+func place_from_save(id: String, origin: Vector2i, rot: int) -> void:
+	_instantiate_register(id, origin, rot)
+	refresh_hall_visuals()
 
 # ---------- Erase ----------
 func can_delete_at(cell: Vector2i) -> bool:
@@ -508,8 +520,8 @@ func erase_at(cell: Vector2i) -> void:
 			cells.append(k)
 	for c in cells: occupied.erase(c)
 	if is_instance_valid(node): node.queue_free()
-	refresh_hall_visuals()
 
+	# dock cleanup
 	if id == "DOCK":
 		for i in range(dock_records.size()-1, -1, -1):
 			if dock_records[i]["node"] == node:
@@ -526,6 +538,8 @@ func erase_at(cell: Vector2i) -> void:
 	var cost := int(defs.get(id, {}).get("cost", 0))
 	credits += int(round(cost * refund_rate))
 	ui.call("set_credits", credits)
+
+	refresh_hall_visuals()
 
 # ---------- Input ----------
 func _unhandled_input(event: InputEvent) -> void:
@@ -596,6 +610,7 @@ func _zoom_by(factor: float) -> void:
 	new_zoom.y = clamp(new_zoom.y, 0.3, 2.5)
 	cam.zoom = new_zoom
 
+# ---------- Save/Load ----------
 func serialize_world() -> Dictionary:
 	var items: Array = []
 	for child in modules_root.get_children():
@@ -631,6 +646,7 @@ func clear_world() -> void:
 		if is_instance_valid(child):
 			child.queue_free()
 	occupied.clear()
+	refresh_hall_visuals()
 
 func load_game(path: String = "user://save.json") -> void:
 	if not FileAccess.file_exists(path):
@@ -656,54 +672,11 @@ func load_game(path: String = "user://save.json") -> void:
 		var item: Dictionary = it as Dictionary
 		var id: String = String(item.get("id", "HALL"))
 		var origin_dic: Dictionary = item.get("origin", {}) as Dictionary
-		# handle missing keys safely
 		var ox: int = int(origin_dic.get("x", 0))
 		var oy: int = int(origin_dic.get("y", 0))
 		var origin: Vector2i = Vector2i(ox, oy)
 		var rot: int = int(item.get("rot", 0))
 		place_from_save(id, origin, rot)
-
-	refresh_hall_visuals()
-
-func place_from_save(id: String, origin: Vector2i, rot: int) -> void:
-	var d: Dictionary = defs[id]
-	var inst: Node2D = d["scene"].instantiate()
-	var size: Vector2i = rotated_size(id, rot)
-	var top_left: Vector2 = cell_to_world_top_left(origin)
-	var size_px: Vector2 = Vector2(size.x * cell_size, size.y * cell_size)
-	inst.position = top_left + size_px * 0.5
-	inst.set("cell_size", cell_size)
-	if "size_cells" in inst:
-		inst.size_cells = size
-	inst.set_meta("id", id)
-	inst.set_meta("origin", {"x": origin.x, "y": origin.y})
-	inst.set_meta("rot", rot)
-
-	if not inst.has_meta("level"):
-		inst.set_meta("level", 1)
-	if id == "HAB" and not inst.has_meta("beds"):
-		inst.set_meta("beds", 2)
-	if id == "SHOP" and not inst.has_meta("income"):
-		inst.set_meta("income", 6)
-	if id == "DOCK" and not inst.has_meta("turnaround"):
-		inst.set_meta("turnaround", 1)
-
-	inst.queue_redraw()
-	modules_root.add_child(inst)
-
-	for c in cells_for(origin, size):
-		occupied[c] = {"id": id, "node": inst, "type": d["type"], "rot": rot}
-
-	if d["type"] == "dock":
-		if "approach_dir" in inst:
-			inst.approach_dir = dock_space_side(rot)
-		dock_records.append({
-			"node": inst,
-			"origin": origin,
-			"size": rotated_size(id, rot),
-			"dir": dock_space_side(rot)
-		})
-		_start_dock_timer(inst)
 
 # ---------- Residents ----------
 func _neighbors4(c: Vector2i) -> Array[Vector2i]:
@@ -814,11 +787,32 @@ func shop_hall_cells() -> Array[Vector2i]:
 
 func hab_adjacent_hall_cells() -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
+	var seen: Dictionary = {}
 	for cell in occupied.keys():
 		if occupied[cell]["id"] == "HAB":
-			for n in _neighbors4(cell):
-				if hall_cells.has(n):
-					out.append(n)
+			var node: Node = occupied[cell]["node"]  # <-- explicit type fixes the error
+			if seen.has(node):
+				continue
+			seen[node] = true
+			# collect one hall cell adjacent to the HAB's door (fallback to any)
+			var origin_dic: Dictionary = node.get_meta("origin") as Dictionary
+			var origin: Vector2i = Vector2i(int(origin_dic.get("x",0)), int(origin_dic.get("y",0)))
+			var rot: int = int(occupied[cell]["rot"])
+			var doors: Array[Vector2i] = rotated_doors("HAB", rot)
+			var added := false
+			if not doors.is_empty():
+				var door_cell: Vector2i = origin + doors[0]
+				for n in _neighbors4(door_cell):
+					if hall_cells.has(n):
+						out.append(n)
+						added = true
+						break
+			if not added:
+				# fallback: any adjacent hall to any HAB footprint cell
+				for n in _neighbors4(cell):
+					if hall_cells.has(n):
+						out.append(n)
+						break
 	return out
 
 func current_population() -> int:
@@ -826,17 +820,25 @@ func current_population() -> int:
 
 func capacity_from_habs() -> int:
 	var cap := 0
+	var seen: Dictionary = {}
 	for v in occupied.values():
 		if v["id"] == "HAB":
-			cap += resident_cap_per_hab
+			var n: Node = v["node"]
+			if seen.has(n): continue
+			seen[n] = true
+			cap += int(n.get_meta("beds", 2))
 	return cap
 
-func shop_count() -> int:
-	var n := 0
+func total_shop_income() -> int:
+	var inc := 0
+	var seen: Dictionary = {}
 	for v in occupied.values():
 		if v["id"] == "SHOP":
-			n += 1
-	return n
+			var n: Node = v["node"]
+			if seen.has(n): continue
+			seen[n] = true
+			inc += int(n.get_meta("income", 6))
+	return inc
 
 func spawn_resident() -> void:
 	var spawns := hab_adjacent_hall_cells()
@@ -852,7 +854,7 @@ func spawn_resident() -> void:
 	residents_root.add_child(inst)
 
 func _on_economy_tick() -> void:
-	var income := shop_count() * income_per_shop
+	var income := total_shop_income()
 	var upkeep := current_population() * upkeep_per_resident
 	credits += (income - upkeep)
 	ui.call("set_credits", credits)
@@ -864,7 +866,7 @@ func _upgrade_module(n: Node) -> void:
 	# simple cost curve
 	var cost := 100 * lvl
 	if credits < cost:
-		return  # or show a "not enough credits" toast
+		return  # TODO: toast "not enough credits"
 
 	credits -= cost
 	ui.call("set_credits", credits)
