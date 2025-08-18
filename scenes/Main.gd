@@ -224,7 +224,6 @@ func _spawn_ship_for_dock(dock_node: Node2D) -> void:
 	var ship: Node2D = ShipScene.instantiate()
 	ship.global_position = spawn
 	ship.set_route(dock_pos, depart)   # <-- new API
-# existing code…
 	add_child(ship)
 	ship.connect("departed", func():
 		if dock_state.has(dock_node):
