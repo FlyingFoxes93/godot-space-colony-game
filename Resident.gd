@@ -12,19 +12,23 @@ var _target_index: int = 0
 
 # Provided by Main
 var request_new_path_cells: Callable        # (start:Vector2i, goal:Vector2i) -> Array[Vector2i]
-var random_hall_cell: Callable              # () -> Vector2i
+var random_walk_target: Callable            # () -> Dictionary{"hall":Vector2i, "inside":Vector2i}
 
 func _ready() -> void:
 	set_process(true)
 
 func _process(delta: float) -> void:
 	if path_world.is_empty():
-		# idle: pick a new hall destination
-		if random_hall_cell.is_valid() and request_new_path_cells.is_valid():
-			var dest: Vector2i = random_hall_cell.call()
-			_set_path_from_cells(request_new_path_cells.call(current_cell, dest))
+		# idle: pick a new destination (hall or room)
+		if random_walk_target.is_valid() and request_new_path_cells.is_valid():
+			var data: Dictionary = random_walk_target.call()
+			var hall: Vector2i = data.get("hall", current_cell)
+			var inside: Vector2i = data.get("inside", hall)
+			var cells: Array[Vector2i] = request_new_path_cells.call(current_cell, hall)
+			if not cells.is_empty() and inside != hall:
+				cells.append(inside)
+			_set_path_from_cells(cells)
 		return
-
 	var target := path_world[_target_index]
 	var dir := (target - global_position)
 	var dist := dir.length()
