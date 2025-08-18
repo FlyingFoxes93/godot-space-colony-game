@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b1ma1yr6fbo54"]
+
+[ext_resource type="Script" uid="uid://dkfwbd11ipjiw" path="res://scenes/modules/Dock.gd" id="1_ob84q"]
+
+[node name="Dock" type="Node2D"]
+script = ExtResource("1_ob84q")
