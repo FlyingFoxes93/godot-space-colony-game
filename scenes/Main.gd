@@ -35,14 +35,14 @@ var occupied: Dictionary = {}
 var defs := BuildDefs.all()
 var current_id := "HALL"
 var current_rot := 0               # 0,1,2,3 = 0°,90°,180°,270°
-var NONE := "NONE"  # new
+var NONE := "NONE"                 # new
 
 var ghost: Node2D = GhostPreview.new()
 
 var pending_erase_cell: Vector2i = Vector2i(-1, -1)
 
 var dock_records: Array = []  # each: {node:Node2D, origin:Vector2i, size:Vector2i, dir:int}
-var dock_state := {}  # node -> {"timer": Timer, "busy": bool}
+var dock_state := {}          # node -> {"timer": Timer, "busy": bool}
 
 func _ready() -> void:
 	# grid & camera
@@ -63,8 +63,6 @@ func _ready() -> void:
 	ui.connect("load_pressed", func(): load_game())
 	ui.connect("upgrade_pressed", func(n: Node): _upgrade_module(n))
 
-
-
 	credits = starting_credits
 	ui.call("set_credits", credits)
 	ui.connect("choose_blueprint", _on_choose_blueprint)
@@ -79,9 +77,9 @@ func _ready() -> void:
 	add_child(ghost)
 	_update_ghost_def()
 
-        _refresh_hall_set()         # build initial empty set
-        _start_timers()
-        spawn_resident()   # starting resident
+	_refresh_hall_set()         # build initial empty set
+	_start_timers()
+	spawn_resident()   # starting resident (comment this out if you want zero random walkers)
 
 func _process(_dt: float) -> void:
 	if not ghost.visible:
@@ -147,11 +145,11 @@ func any_neighbor_hall(cell: Vector2i) -> bool:
 	return false
 
 func _start_timers() -> void:
-    _tick_timer = Timer.new()
-    _tick_timer.wait_time = tick_interval_s
-    _tick_timer.autostart = true
-    _tick_timer.timeout.connect(_on_economy_tick)
-    add_child(_tick_timer)
+	_tick_timer = Timer.new()
+	_tick_timer.wait_time = tick_interval_s
+	_tick_timer.autostart = true
+	_tick_timer.timeout.connect(_on_economy_tick)
+	add_child(_tick_timer)
 
 func is_on_map_edge_rect(origin: Vector2i, size: Vector2i, space_side: int) -> bool:
 	# space_side: 0=N,1=E,2=S,3=W — the side that must touch the map boundary
@@ -162,6 +160,7 @@ func is_on_map_edge_rect(origin: Vector2i, size: Vector2i, space_side: int) -> b
 		3: return origin.x == 0
 	return false
 
+# ---------- Docks & Ships ----------
 func dock_space_side(rot: int) -> int:
 	# Dock "approach" faces the direction of rotation
 	return rot % 4
@@ -224,42 +223,42 @@ func _spawn_ship_for_dock(dock_node: Node2D) -> void:
 			_arm_dock_timer(dock_node)
 	)
 
-       # when ship arrives: spawn a visitor, make them do a shop loop, then ask ship to depart
-       ship.connect("arrived", func():
-               var start_hall := dock_entry_hall_cell(dock_node)
-               if start_hall.x == -999:
-                       ship.request_depart()
-                       return
+	# when ship arrives: spawn a visitor, make them do a shop loop, then ask ship to depart
+	ship.connect("arrived", func():
+		var start_hall := dock_entry_hall_cell(dock_node)
+		if start_hall.x == -999:
+			ship.request_depart()
+			return
 
-               var shops := shop_hall_cells()
-               if shops.is_empty():
-                       ship.request_depart()
-                       return
+		var shops := shop_hall_cells()
+		if shops.is_empty():
+			ship.request_depart()
+			return
 
-               var segments: Array = []
-               var prev := start_hall
-               for h in shops:
-                       var seg := compute_path_cells(prev, h)
-                       if seg.is_empty():
-                               ship.request_depart()
-                               return
-                       segments.append(seg)
-                       prev = h
-               var back_seg := compute_path_cells(prev, start_hall)
-               if back_seg.is_empty():
-                       ship.request_depart()
-                       return
-               segments.append(back_seg)
+		var segments: Array = []
+		var prev := start_hall
+		for h in shops:
+			var seg := compute_path_cells(prev, h)
+			if seg.is_empty():
+				ship.request_depart()
+				return
+			segments.append(seg)
+			prev = h
+		var back_seg := compute_path_cells(prev, start_hall)
+		if back_seg.is_empty():
+			ship.request_depart()
+			return
+		segments.append(back_seg)
 
-               var seg_world: Array = []
-               for seg in segments:
-                       seg_world.append(path_cells_to_world(seg))
+		var seg_world: Array = []
+		for seg in segments:
+			seg_world.append(path_cells_to_world(seg))
 
-               var ch := CharacterScene.instantiate()
-               var spawn_world := cell_to_world_center(start_hall)
-               ch.call("begin_visit", seg_world, ship, spawn_world)
-               add_child(ch)
-       )
+		var ch := CharacterScene.instantiate()
+		var spawn_world := cell_to_world_center(start_hall)
+		ch.call("begin_visit", seg_world, ship, spawn_world)
+		add_child(ch)
+	)
 
 # Direction unit vectors for N,E,S,W
 func _dir4(d: int) -> Vector2i:
@@ -335,9 +334,6 @@ func dock_entry_hall_cell(dock_node: Node2D) -> Vector2i:
 	for n in _neighbors4(door_cell):
 		if hall_cells.has(n):
 			return n
-	return Vector2i(-999, -999)
-
-
 	return Vector2i(-999, -999)
 
 # ---------- Rotation math ----------
@@ -710,7 +706,6 @@ func place_from_save(id: String, origin: Vector2i, rot: int) -> void:
 		_start_dock_timer(inst)
 
 # ---------- Residents ----------
-
 func _neighbors4(c: Vector2i) -> Array[Vector2i]:
 	return [Vector2i(c.x+1,c.y), Vector2i(c.x-1,c.y), Vector2i(c.x,c.y+1), Vector2i(c.x,c.y-1)]
 
@@ -753,69 +748,69 @@ func get_path_world(start_cell: Vector2i, goal_cell: Vector2i) -> Array[Vector2]
 	return path_cells_to_world(compute_path_cells(start_cell, goal_cell))
 
 func random_hall() -> Vector2i:
-        if hall_cells.is_empty():
-                return Vector2i(0,0)
-        var keys := hall_cells.keys()
-        return keys[randi() % keys.size()]
+	if hall_cells.is_empty():
+		return Vector2i(0, 0)
+	var keys := hall_cells.keys()
+	return keys[randi() % keys.size()]
 
 func room_entry_points() -> Array:
-    var out: Array = []
-    var seen: Dictionary = {}
-    for cell in occupied.keys():
-        var rec = occupied[cell]
-        if rec["type"] != "room":
-            continue
-        var node: Node = rec["node"]
-        if seen.has(node):
-            continue
-        seen[node] = true
-        var origin_dic: Dictionary = node.get_meta("origin")
-        var origin: Vector2i = Vector2i(int(origin_dic.get("x", 0)), int(origin_dic.get("y", 0)))
-        var rot: int = int(rec["rot"])
-        var doors: Array[Vector2i] = rotated_doors(rec["id"], rot)
-        if doors.is_empty():
-            continue
-        var door_local: Vector2i = doors[0]
-        var door_cell: Vector2i = origin + door_local
-        for n in _neighbors4(door_cell):
-            if hall_cells.has(n):
-                out.append({"hall": n, "inside": door_cell})
-                break
-    return out
+	var out: Array = []
+	var seen: Dictionary = {}
+	for cell in occupied.keys():
+		var rec = occupied[cell]
+		if rec["type"] != "room":
+			continue
+		var node: Node = rec["node"]
+		if seen.has(node):
+			continue
+		seen[node] = true
+		var origin_dic: Dictionary = node.get_meta("origin")
+		var origin: Vector2i = Vector2i(int(origin_dic.get("x", 0)), int(origin_dic.get("y", 0)))
+		var rot: int = int(rec["rot"])
+		var doors: Array[Vector2i] = rotated_doors(rec["id"], rot)
+		if doors.is_empty():
+			continue
+		var door_local: Vector2i = doors[0]
+		var door_cell: Vector2i = origin + door_local
+		for n in _neighbors4(door_cell):
+			if hall_cells.has(n):
+				out.append({"hall": n, "inside": door_cell})
+				break
+	return out
 
 func random_resident_target() -> Dictionary:
-    var opts: Array = []
-    for cell in hall_cells.keys():
-        opts.append({"hall": cell, "inside": cell})
-    opts += room_entry_points()
-    if opts.is_empty():
-        return {"hall": Vector2i(0,0), "inside": Vector2i(0,0)}
-    return opts[randi() % opts.size()]
+	var opts: Array = []
+	for cell in hall_cells.keys():
+		opts.append({"hall": cell, "inside": cell})
+	opts += room_entry_points()
+	if opts.is_empty():
+		return {"hall": Vector2i(0,0), "inside": Vector2i(0,0)}
+	return opts[randi() % opts.size()]
 
 func shop_hall_cells() -> Array[Vector2i]:
-    var out: Array[Vector2i] = []
-    var seen: Dictionary = {}
-    for cell in occupied.keys():
-        var rec = occupied[cell]
-        if rec["id"] != "SHOP":
-            continue
-        var node: Node = rec["node"]
-        if seen.has(node):
-            continue
-        seen[node] = true
-        var origin_dic: Dictionary = node.get_meta("origin")
-        var origin: Vector2i = Vector2i(int(origin_dic.get("x",0)), int(origin_dic.get("y",0)))
-        var rot: int = int(rec["rot"])
-        var doors: Array[Vector2i] = rotated_doors("SHOP", rot)
-        if doors.is_empty():
-            continue
-        var door_local: Vector2i = doors[0]
-        var door_cell: Vector2i = origin + door_local
-        for n in _neighbors4(door_cell):
-            if hall_cells.has(n):
-                out.append(n)
-                break
-    return out
+	var out: Array[Vector2i] = []
+	var seen: Dictionary = {}
+	for cell in occupied.keys():
+		var rec = occupied[cell]
+		if rec["id"] != "SHOP":
+			continue
+		var node: Node = rec["node"]
+		if seen.has(node):
+			continue
+		seen[node] = true
+		var origin_dic: Dictionary = node.get_meta("origin")
+		var origin: Vector2i = Vector2i(int(origin_dic.get("x",0)), int(origin_dic.get("y",0)))
+		var rot: int = int(rec["rot"])
+		var doors: Array[Vector2i] = rotated_doors("SHOP", rot)
+		if doors.is_empty():
+			continue
+		var door_local: Vector2i = doors[0]
+		var door_cell: Vector2i = origin + door_local
+		for n in _neighbors4(door_cell):
+			if hall_cells.has(n):
+				out.append(n)
+				break
+	return out
 
 func hab_adjacent_hall_cells() -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
@@ -844,17 +839,17 @@ func shop_count() -> int:
 	return n
 
 func spawn_resident() -> void:
-    var spawns := hab_adjacent_hall_cells()
-    if spawns.is_empty():
-        return
-    var start_cell: Vector2i = spawns[randi() % spawns.size()]
-    var inst: Node2D = ResidentScene.instantiate()
-    inst.set("cell_size", cell_size)
-    inst.call("set_spawn", start_cell, cell_to_world_center(start_cell))
-    # wire callbacks
-    inst.set("request_new_path_cells", Callable(self, "compute_path_cells"))
-    inst.set("random_walk_target", Callable(self, "random_resident_target"))
-    residents_root.add_child(inst)
+	var spawns := hab_adjacent_hall_cells()
+	if spawns.is_empty():
+		return
+	var start_cell: Vector2i = spawns[randi() % spawns.size()]
+	var inst: Node2D = ResidentScene.instantiate()
+	inst.set("cell_size", cell_size)
+	inst.call("set_spawn", start_cell, cell_to_world_center(start_cell))
+	# wire callbacks
+	inst.set("request_new_path_cells", Callable(self, "compute_path_cells"))
+	inst.set("random_walk_target", Callable(self, "random_resident_target"))
+	residents_root.add_child(inst)
 
 func _on_economy_tick() -> void:
 	var income := shop_count() * income_per_shop
