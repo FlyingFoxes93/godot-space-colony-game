@@ -6,41 +6,44 @@ class_name Character
 @export var visit_max_s: float = 5.0
 
 var char_name: String = ""
-var _path: Array[Vector2] = []
-var _path_back: Array[Vector2] = []
+var _segments: Array = []              # Array of Array[Vector2]
+var _seg_idx := 0
 var _i := 0
-var _phase := "to_shop"  # to_shop -> visiting -> to_dock -> done
 var _ship: Node = null
+var _waiting := false
 
-func begin_visit(path_to: Array, path_back: Array, ship: Node, spawn_pos: Vector2) -> void:
-	# Accept generic Arrays; store as Vector2 arrays
-	_path.clear()
-	for p in path_to: _path.append(Vector2(p))
-	_path_back.clear()
-	for p in path_back: _path_back.append(Vector2(p))
+func begin_visit(paths: Array, ship: Node, spawn_pos: Vector2) -> void:
+	_segments.clear()
+	for seg in paths:
+		var arr: Array[Vector2] = []
+		for p in seg:
+			arr.append(Vector2(p))
+		_segments.append(arr)
 	_ship = ship
 	global_position = spawn_pos
+	_seg_idx = 0
 	_i = 0
-	_phase = "to_shop"
+	_waiting = false
 	set_process(true)
 
 func _process(delta: float) -> void:
-	match _phase:
-		"to_shop":
-			if _advance_along(_path, delta):
-				_phase = "visiting"
+	if _waiting:
+		return
+	if _seg_idx >= _segments.size():
+		if is_instance_valid(_ship) and "request_depart" in _ship:
+			_ship.request_depart()
+		queue_free()
+		return
+	var seg: Array[Vector2] = _segments[_seg_idx]
+	if _advance_along(seg, delta):
+		_seg_idx += 1
+		_i = 0
+		if _seg_idx < _segments.size():
+			if _seg_idx < _segments.size() - 1:
+				_waiting = true
 				var t := randf_range(visit_min_s, visit_max_s)
 				await get_tree().create_timer(t).timeout
-				_phase = "to_dock"
-				_i = 0
-		"to_dock":
-			if _advance_along(_path_back, delta):
-				_phase = "done"
-				if is_instance_valid(_ship) and "request_depart" in _ship:
-					_ship.request_depart()  # tell the ship we're back aboard
-				queue_free()
-		_:
-			pass
+				_waiting = false
 
 func _advance_along(points: Array[Vector2], delta: float) -> bool:
 	if points.is_empty(): return true
