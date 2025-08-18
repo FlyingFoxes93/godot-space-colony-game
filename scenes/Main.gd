@@ -78,7 +78,6 @@ func _ready() -> void:
 			erase_at(pending_erase_cell)
 			pending_erase_cell = Vector2i(-1, -1)
 	)
-
 	add_child(ghost)
 	_update_ghost_def()
 
@@ -227,6 +226,11 @@ func _spawn_ship_for_dock(dock_node: Node2D) -> void:
 	ship.set_route(dock_pos, depart)   # <-- new API
 # existing code…
 	add_child(ship)
+	ship.connect("departed", func():
+		if dock_state.has(dock_node):
+			dock_state[dock_node]["busy"] = false
+			_arm_dock_timer(dock_node)
+	)
 
 	# when ship arrives: spawn a visitor, make them do a shop loop, then ask ship to depart
 	ship.connect("arrived", func():
