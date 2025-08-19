@@ -14,9 +14,12 @@ var _target_index: int = 0
 var request_new_path_cells: Callable        # (start:Vector2i, goal:Vector2i) -> Array[Vector2i]
 var random_walk_target: Callable            # () -> Dictionary{"hall":Vector2i, "inside":Vector2i}
 
+# -- Lifecycle ------------------------------------------------------------
+# Enables processing so the resident can move each frame.
 func _ready() -> void:
 	set_process(true)
 
+# Handles idle wandering and step-by-step movement along the current path.
 func _process(delta: float) -> void:
 	if path_world.is_empty():
 		# idle: pick a new destination (hall or room)
@@ -57,10 +60,12 @@ func _process(delta: float) -> void:
 		else:
 			global_position += step
 
+# Sets the starting cell and world position when the resident spawns.
 func set_spawn(cell: Vector2i, world_pos: Vector2) -> void:
 	current_cell = cell
 	global_position = world_pos
 
+# Converts a list of grid cells into a world-space path for the resident to follow.
 func _set_path_from_cells(cells: Array[Vector2i]) -> void:
 	path_cells = cells.duplicate()
 	path_world.clear()
@@ -68,10 +73,12 @@ func _set_path_from_cells(cells: Array[Vector2i]) -> void:
 		path_world.append(_cell_to_center(c))
 	_target_index = 0
 
+# Returns the world coordinate at the center of a given grid cell.
 func _cell_to_center(c: Vector2i) -> Vector2:
 	return Vector2(c.x * cell_size + cell_size * 0.5, c.y * cell_size + cell_size * 0.5)
 
+# -- Rendering ------------------------------------------------------------
+# Draws the simple circular representation of a resident.
 func _draw() -> void:
-	# simple character blob
 	draw_circle(Vector2.ZERO, min(10.0, cell_size * 0.25), Color(0.18, 0.22, 0.28, 1))
 	draw_circle(Vector2.ZERO, min(9.0, cell_size * 0.23), Color(0.85, 0.92, 1.0, 1))

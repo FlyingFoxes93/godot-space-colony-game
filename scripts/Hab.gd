@@ -4,6 +4,8 @@ extends Node2D
 @export var fill: Color = Color.hex(0x5DC1B9FF)
 @export var stroke: Color = Color(0x111111ff)
 
+# -- Rendering ------------------------------------------------------------
+# Draws the hab module as a filled rectangle with an outline.
 func _draw() -> void:
 	var sz := Vector2(size_cells.x * cell_size, size_cells.y * cell_size)
 	var rect := Rect2(-sz * 0.5, sz)

@@ -12,6 +12,8 @@ var _i := 0
 var _ship: Node = null
 var _waiting := false
 
+# -- Visiting Behaviour --------------------------------------------------
+# Initializes the visitor with its route through the station and spawn point.
 func begin_visit(paths: Array, ship: Node, spawn_pos: Vector2) -> void:
 	_segments.clear()
 	for seg in paths:
@@ -26,6 +28,7 @@ func begin_visit(paths: Array, ship: Node, spawn_pos: Vector2) -> void:
 	_waiting = false
 	set_process(true)
 
+# Moves the character along the current segment and waits between visits.
 func _process(delta: float) -> void:
 	if _waiting:
 		return
@@ -45,6 +48,7 @@ func _process(delta: float) -> void:
 				await get_tree().create_timer(t).timeout
 				_waiting = false
 
+# Advances along a series of waypoints; returns true when the segment ends.
 func _advance_along(points: Array[Vector2], delta: float) -> bool:
 	if points.is_empty(): return true
 	if _i >= points.size(): return true
@@ -61,6 +65,7 @@ func _advance_along(points: Array[Vector2], delta: float) -> bool:
 		global_position += step
 	return false
 
+# -- Rendering -----------------------------------------------------------
+# Draws a small placeholder graphic for the visiting character.
 func _draw() -> void:
-	# tiny placeholder dot
 	draw_circle(Vector2.ZERO, 6.0, Color(0.9, 0.6, 0.2))

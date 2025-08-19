@@ -12,17 +12,21 @@ var dock_pos: Vector2
 var depart_pos: Vector2
 var _ready_to_leave := false
 
+# -- Route & Movement ----------------------------------------------------
+# Defines the dock approach and departure points and starts the approach.
 func set_route(dock_target: Vector2, depart_target: Vector2) -> void:
 	dock_pos = dock_target
 	depart_pos = depart_target
 	state = State.APPROACH
 	set_process(true)
 
+# Signals that the ship should leave once dock operations finish.
 func request_depart() -> void:
 	_ready_to_leave = true
 	if state == State.DWELL:
 		state = State.DEPART
 
+# Updates the ship each frame, moving between approach, dwell and departure.
 func _process(delta: float) -> void:
 	match state:
 		State.APPROACH:
@@ -41,6 +45,7 @@ func _process(delta: float) -> void:
 		_:
 			pass
 
+# Moves toward the given target and returns true when the ship reaches it.
 func _move_towards(target: Vector2, delta: float) -> bool:
 	var v := target - global_position
 	var d := v.length()
@@ -54,7 +59,8 @@ func _move_towards(target: Vector2, delta: float) -> bool:
 		global_position += step
 	return false
 
+# -- Rendering -----------------------------------------------------------
+# Draws a simple round ship with a tiny viewport bubble.
 func _draw() -> void:
-	# cute bubble ship
 	draw_circle(Vector2.ZERO, 10, Color(0.95, 0.8, 0.3))
 	draw_circle(Vector2(4, -3), 3, Color(1,1,1,0.8))
