@@ -5,6 +5,9 @@ var size_cells: Vector2i = Vector2i(1, 1)
 var door_cells: Array = []   # untyped for safety when fed from Dictionaries
 var valid: bool = false
 
+# -- Configuration -------------------------------------------------------
+# Sets up the preview's footprint, size and door markers for the selected
+# blueprint.
 func configure(cell_size_: int, size_: Vector2i, doors_: Array) -> void:
 	cell_size = cell_size_
 	size_cells = size_
@@ -12,10 +15,13 @@ func configure(cell_size_: int, size_: Vector2i, doors_: Array) -> void:
 	for d in doors_:
 		door_cells.append(Vector2i(d))  # force-cast each element
 
+# Marks whether the current placement is valid and redraws to update color.
 func set_valid(v: bool) -> void:
 	valid = v
 	queue_redraw()
 
+# -- Rendering ----------------------------------------------------------
+# Draws the translucent footprint and door indicators for the pending build.
 func _draw() -> void:
 	var sz := Vector2(size_cells.x * cell_size, size_cells.y * cell_size)
 	var top_left := Vector2(-sz.x / 2.0, -sz.y / 2.0)

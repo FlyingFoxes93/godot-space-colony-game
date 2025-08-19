@@ -1,6 +1,9 @@
 extends Resource
 class_name BuildDefs
 
+# -- Definitions ---------------------------------------------------------
+# Returns a dictionary describing all buildable module types and their
+# costs, sizes, door positions and scenes.
 static func all() -> Dictionary:
 	return {
 		"HALL": {

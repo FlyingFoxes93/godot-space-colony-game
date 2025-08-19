@@ -24,6 +24,8 @@ signal upgrade_pressed(node: Node)   # new
 
 var _inspected_node: Node = null     # store target for Upgrade
 
+# -- Setup ---------------------------------------------------------------
+# Connects buttons, prepares the inspect panel and configures visual style.
 func _ready() -> void:
 	btn_hall.pressed.connect(func(): emit_signal("choose_blueprint", "HALL"))
 	btn_hab.pressed.connect(func(): emit_signal("choose_blueprint", "HAB"))
@@ -70,12 +72,17 @@ func _ready() -> void:
 	inspect_stats.bbcode_enabled = false
 	inspect_stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
+# -- Credits & Confirmation ---------------------------------------------
+# Updates the displayed credit count.
 func set_credits(value: int) -> void:
 	credits_label.text = "₡ %d" % value
 
+# Opens a confirmation dialog before erasing a module.
 func ask_confirm_erase() -> void:
 	$ConfirmErase.popup_centered()
 
+# -- Inspection Panel ----------------------------------------------------
+# Shows module details in the inspect panel and stores the node for upgrades.
 func show_inspect(id: String, node: Node) -> void:
 	_inspected_node = node
 	inspect_panel.visible = true
@@ -96,6 +103,7 @@ func show_inspect(id: String, node: Node) -> void:
 	inspect_stats.text = text
 	# print("INSPECT:", id, " -> ", text)  # uncomment once to confirm it's being set
 
+# Hides the inspect panel and clears the stored node reference.
 func hide_inspect() -> void:
 	inspect_panel.visible = false
 	_inspected_node = null

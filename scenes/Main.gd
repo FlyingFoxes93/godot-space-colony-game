@@ -45,6 +45,8 @@ var pending_erase_cell: Vector2i = Vector2i(-1, -1)
 var dock_records: Array = []  # each: {node:Node2D, origin:Vector2i, size:Vector2i, dir:int}
 var dock_state := {}          # node -> {"timer": Timer, "busy": bool}
 
+# -- Setup & Main Loop ---------------------------------------------------
+# Initializes camera limits, connects UI signals and spawns starting entities.
 func _ready() -> void:
 	# grid & camera
 	grid.set("cell_size", cell_size)
@@ -81,6 +83,7 @@ func _ready() -> void:
 	_start_timers()
 	spawn_resident()   # starting resident (comment out to start empty)
 
+# Positions the ghost preview and checks if placement is valid each frame.
 func _process(_dt: float) -> void:
 	if not ghost.visible:
 		return
@@ -95,15 +98,17 @@ func _process(_dt: float) -> void:
 	var ok := (can_delete_at(origin_cell) if current_id == "ERASE" else can_place_at(origin_cell, current_id, current_rot))
 	ghost.call("set_valid", ok)
 
-func _on_choose_blueprint(id: String) -> void: 
-	# toggle off if clicking the same tool again 
-	if current_id == id: 
-		current_id = NONE 
-	else: 
-		current_id = id 
-	# update ghost (or hide if NONE) 
+# Handles blueprint selection from the UI.
+func _on_choose_blueprint(id: String) -> void:
+	# toggle off if clicking the same tool again
+	if current_id == id:
+		current_id = NONE
+	else:
+		current_id = id
+	# update ghost (or hide if NONE)
 	_update_ghost_def()
 
+# Updates the ghost preview to match the currently selected blueprint.
 func _update_ghost_def() -> void:
 	if current_id == NONE or current_id == "ERASE":
 		ghost.visible = false
@@ -113,19 +118,24 @@ func _update_ghost_def() -> void:
 	var doors := rotated_doors(current_id, current_rot)
 	ghost.call("configure", cell_size, size, doors)
 
-# ---------- Helpers ----------
+# -- Helpers -------------------------------------------------------------
+# Converts a world position to the grid cell index.
 func world_to_cell(world_pos: Vector2) -> Vector2i:
 	return Vector2i(floor(world_pos.x / cell_size), floor(world_pos.y / cell_size))
 
+# Returns the world-space center of a grid cell.
 func cell_to_world_center(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x * cell_size + cell_size * 0.5, cell.y * cell_size + cell_size * 0.5)
 
+# Returns the world-space top-left corner of a grid cell.
 func cell_to_world_top_left(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x * cell_size, cell.y * cell_size)
 
+# Determines if a rectangle of cells fits within the map bounds.
 func in_bounds_rect(origin: Vector2i, size: Vector2i) -> bool:
 	return origin.x >= 0 and origin.y >= 0 and (origin.x + size.x) <= cols and (origin.y + size.y) <= rows
 
+# Generates an array of all cells covered by a rectangle.
 func cells_for(origin: Vector2i, size: Vector2i) -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	for y in range(size.y):
@@ -133,9 +143,11 @@ func cells_for(origin: Vector2i, size: Vector2i) -> Array[Vector2i]:
 			out.append(origin + Vector2i(x, y))
 	return out
 
+# True if any modules have been placed on the map.
 func has_any_modules() -> bool:
 	return occupied.size() > 0
 
+# Checks if the given cell touches an existing hall module.
 func any_neighbor_hall(cell: Vector2i) -> bool:
 	for d in DIR4:
 		var n: Vector2i = cell + d
@@ -143,6 +155,7 @@ func any_neighbor_hall(cell: Vector2i) -> bool:
 			return true
 	return false
 
+# Creates and starts the repeating economy tick timer.
 func _start_timers() -> void:
 	_tick_timer = Timer.new()
 	_tick_timer.wait_time = tick_interval_s
@@ -150,6 +163,7 @@ func _start_timers() -> void:
 	_tick_timer.timeout.connect(_on_economy_tick)
 	add_child(_tick_timer)
 
+# Determines if a placement rectangle lies on a specified map edge.
 func is_on_map_edge_rect(origin: Vector2i, size: Vector2i, space_side: int) -> bool:
 	# space_side: 0=N,1=E,2=S,3=W — the side that must touch the map boundary
 	match space_side:
@@ -160,10 +174,11 @@ func is_on_map_edge_rect(origin: Vector2i, size: Vector2i, space_side: int) -> b
 	return false
 
 # ---------- Docks & Ships ----------
+# Returns the map side a dock faces based on rotation.
 func dock_space_side(rot: int) -> int:
-	# Dock "approach" faces the direction of rotation
 	return rot % 4
 
+# Creates a timer for a dock to periodically attempt spawning ships.
 func _start_dock_timer(dock_node: Node2D) -> void:
 	var t := Timer.new()
 	t.one_shot = true
@@ -172,6 +187,7 @@ func _start_dock_timer(dock_node: Node2D) -> void:
 	dock_state[dock_node] = {"timer": t, "busy": false}
 	_arm_dock_timer(dock_node)  # first arm
 
+# Arms or re-arms a dock's spawn timer.
 func _arm_dock_timer(dock_node: Node2D) -> void:
 	if not is_instance_valid(dock_node): return
 	if not dock_state.has(dock_node): return
@@ -190,6 +206,7 @@ func _arm_dock_timer(dock_node: Node2D) -> void:
 	)
 	t.start()
 
+# Spawns a ship that approaches the given dock and handles arrival/departure.
 func _spawn_ship_for_dock(dock_node: Node2D) -> void:
 	if not is_instance_valid(dock_node):
 		return
@@ -214,7 +231,7 @@ func _spawn_ship_for_dock(dock_node: Node2D) -> void:
 
 	var ship: Node2D = ShipScene.instantiate()
 	ship.global_position = spawn
-	ship.set_route(dock_pos, depart)   # <-- expected API on Ship.gd
+	ship.set_route(dock_pos, depart)   # expected API on Ship.gd
 	add_child(ship)
 	ship.connect("departed", func():
 		if dock_state.has(dock_node):
@@ -259,8 +276,8 @@ func _spawn_ship_for_dock(dock_node: Node2D) -> void:
 		add_child(ch)
 	)
 
+# Converts a direction index to a 4-way unit vector.
 func _dir4(d: int) -> Vector2i:
-	# integer direction to unit vector (N,E,S,W)
 	match d % 4:
 		0: return Vector2i(0, -1)  # N
 		1: return Vector2i(1, 0)   # E
@@ -318,6 +335,7 @@ func all_existing_dock_approach_cells() -> Dictionary:
 			blocked[c] = true
 	return blocked
 
+# Finds a hall cell connected to the dock's internal door.
 func dock_entry_hall_cell(dock_node: Node2D) -> Vector2i:
 	var rot: int = int(dock_node.get_meta("rot"))
 	var origin_dic: Dictionary = (dock_node.get_meta("origin") as Dictionary)
@@ -336,19 +354,22 @@ func dock_entry_hall_cell(dock_node: Node2D) -> Vector2i:
 	return Vector2i(-999, -999)
 
 # ---------- Rotation math ----------
+# Returns the size of a module after applying rotation.
 func rotated_size(id: String, rot: int) -> Vector2i:
 	var base: Vector2i = defs[id].get("size", Vector2i(1,1))
 	if defs[id].get("type","") == "tool":
 		return base
 	return (base if rot % 2 == 0 else Vector2i(base.y, base.x))
 
+# Rotates a local grid point 90 degrees clockwise within a rectangle.
 func rotate_point_cw(p: Vector2i, size: Vector2i) -> Vector2i:
-	# 90° CW around top-left of rect size (w,h)
 	return Vector2i(size.y - 1 - p.y, p.x)
 
+# Rotates a local grid point 90 degrees counter-clockwise within a rectangle.
 func rotate_point_ccw(p: Vector2i, size: Vector2i) -> Vector2i:
 	return Vector2i(p.y, size.x - 1 - p.x)
 
+# Returns the door positions of a module adjusted for rotation.
 func rotated_doors(id: String, rot: int) -> Array:
 	var base_size: Vector2i = defs[id].get("size", Vector2i(1,1))
 	var doors: Array = defs[id].get("doors", [])
@@ -374,6 +395,7 @@ func rotated_doors(id: String, rot: int) -> Array:
 	return rpts
 
 # ---------- Placement rules ----------
+# Validates whether a module can be placed at a grid origin with rotation.
 func can_place_at(origin: Vector2i, id: String, rot: int) -> bool:
 	var d: Dictionary = defs[id]
 	var size_cells: Vector2i = rotated_size(id, rot)
@@ -419,18 +441,21 @@ func can_place_at(origin: Vector2i, id: String, rot: int) -> bool:
 			return true
 	return false
 
+# Returns true if any neighbor cell is occupied by any module.
 func _cell_neighbors_anything(cell: Vector2i) -> bool:
 	for d in DIR4:
 		var n: Vector2i = cell + d
 		if occupied.has(n): return true
 	return false
 
+# Rebuilds the set of all hall cells from the occupied map.
 func _refresh_hall_set() -> void:
 	hall_cells.clear()
 	for cell in occupied.keys():
 		if occupied[cell]["type"] == "hall":
 			hall_cells[cell] = true
 
+# Updates hall visuals to show connected edges.
 func refresh_hall_visuals() -> void:
 	_refresh_hall_set()
 	for cell in hall_cells.keys():
@@ -445,6 +470,7 @@ func refresh_hall_visuals() -> void:
 			node.set_mask(m)
 
 # ---------- Instantiation (single source of truth) ----------
+# Creates a module instance, registers it in the occupied map and returns it.
 func _instantiate_register(id: String, origin: Vector2i, rot: int) -> Node2D:
 	var d: Dictionary = defs[id]
 	var inst: Node2D = d["scene"].instantiate()
@@ -490,6 +516,7 @@ func _instantiate_register(id: String, origin: Vector2i, rot: int) -> Node2D:
 
 	return inst
 
+# Attempts to build a module at the given origin.
 func place(id: String, origin: Vector2i, rot: int) -> void:
 	var d: Dictionary = defs[id]
 	if credits < d.get("cost", 0): return
@@ -501,14 +528,17 @@ func place(id: String, origin: Vector2i, rot: int) -> void:
 	_instantiate_register(id, origin, rot)
 	refresh_hall_visuals()
 
+# Places a module without cost or validation (used when loading saves).
 func place_from_save(id: String, origin: Vector2i, rot: int) -> void:
 	_instantiate_register(id, origin, rot)
 	refresh_hall_visuals()
 
 # ---------- Erase ----------
+# Checks if a cell is occupied and can be deleted.
 func can_delete_at(cell: Vector2i) -> bool:
 	return occupied.has(cell)
 
+# Removes the module occupying the given cell and refunds part of its cost.
 func erase_at(cell: Vector2i) -> void:
 	if not occupied.has(cell): return
 	var node: Node2D = occupied[cell]["node"]
@@ -542,6 +572,7 @@ func erase_at(cell: Vector2i) -> void:
 	refresh_hall_visuals()
 
 # ---------- Input ----------
+# Handles build/erase clicks, rotation shortcuts and camera control.
 func _unhandled_input(event: InputEvent) -> void:
 	# place / erase
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
@@ -604,6 +635,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		var delta_screen := get_viewport().get_mouse_position() - pan_origin_screen
 		cam.position = cam_origin - delta_screen * cam.zoom.x
 
+# Zooms the camera by the given factor with limits.
 func _zoom_by(factor: float) -> void:
 	var new_zoom := cam.zoom * Vector2(factor, factor)
 	new_zoom.x = clamp(new_zoom.x, 0.3, 2.5)
@@ -611,6 +643,7 @@ func _zoom_by(factor: float) -> void:
 	cam.zoom = new_zoom
 
 # ---------- Save/Load ----------
+# Serializes current modules and credits to a dictionary for saving.
 func serialize_world() -> Dictionary:
 	var items: Array = []
 	for child in modules_root.get_children():
@@ -634,6 +667,7 @@ func serialize_world() -> Dictionary:
 		"items": items
 	}
 
+# Writes the current world state to disk.
 func save_game(path: String = "user://save.json") -> void:
 	var data: Dictionary = serialize_world()
 	var f: FileAccess = FileAccess.open(path, FileAccess.WRITE)
@@ -641,6 +675,7 @@ func save_game(path: String = "user://save.json") -> void:
 		f.store_string(JSON.stringify(data, "  "))
 		f.close()
 
+# Clears all placed modules from the world.
 func clear_world() -> void:
 	for child in modules_root.get_children():
 		if is_instance_valid(child):
@@ -648,6 +683,7 @@ func clear_world() -> void:
 	occupied.clear()
 	refresh_hall_visuals()
 
+# Loads world data from disk and rebuilds modules.
 func load_game(path: String = "user://save.json") -> void:
 	if not FileAccess.file_exists(path):
 		return
@@ -679,9 +715,11 @@ func load_game(path: String = "user://save.json") -> void:
 		place_from_save(id, origin, rot)
 
 # ---------- Residents ----------
+# Four-way neighbor coordinates helper.
 func _neighbors4(c: Vector2i) -> Array[Vector2i]:
 	return [Vector2i(c.x+1,c.y), Vector2i(c.x-1,c.y), Vector2i(c.x,c.y+1), Vector2i(c.x,c.y-1)]
 
+# Breadth-first search through halls for a path between cells.
 func compute_path_cells(start: Vector2i, goal: Vector2i) -> Array[Vector2i]:
 	if start == goal:
 		return [start]
@@ -711,21 +749,25 @@ func compute_path_cells(start: Vector2i, goal: Vector2i) -> Array[Vector2i]:
 	path.reverse()
 	return path
 
+# Converts a list of grid cells to world-space coordinates.
 func path_cells_to_world(path_cells: Array[Vector2i]) -> Array[Vector2]:
 	var out: Array[Vector2] = []
 	for c in path_cells:
 		out.append(cell_to_world_center(c))
 	return out
 
+# Computes a world-space path from a start cell to a goal cell.
 func get_path_world(start_cell: Vector2i, goal_cell: Vector2i) -> Array[Vector2]:
 	return path_cells_to_world(compute_path_cells(start_cell, goal_cell))
 
+# Picks a random hall cell from existing hall network.
 func random_hall() -> Vector2i:
 	if hall_cells.is_empty():
 		return Vector2i(0, 0)
 	var keys := hall_cells.keys()
 	return keys[randi() % keys.size()]
 
+# Collects entry points for rooms where residents can wander inside.
 func room_entry_points() -> Array:
 	var out: Array = []
 	var seen: Dictionary = {}
@@ -751,6 +793,7 @@ func room_entry_points() -> Array:
 				break
 	return out
 
+# Chooses a random hall or room entry for a resident to travel to.
 func random_resident_target() -> Dictionary:
 	var opts: Array = []
 	for cell in hall_cells.keys():
@@ -760,6 +803,7 @@ func random_resident_target() -> Dictionary:
 		return {"hall": Vector2i(0,0), "inside": Vector2i(0,0)}
 	return opts[randi() % opts.size()]
 
+# Returns hall cells adjacent to all shops for visitor routing.
 func shop_hall_cells() -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	var seen: Dictionary = {}
@@ -785,12 +829,13 @@ func shop_hall_cells() -> Array[Vector2i]:
 				break
 	return out
 
+# Returns hall cells adjacent to hab modules for spawning residents.
 func hab_adjacent_hall_cells() -> Array[Vector2i]:
 	var out: Array[Vector2i] = []
 	var seen: Dictionary = {}
 	for cell in occupied.keys():
 		if occupied[cell]["id"] == "HAB":
-			var node: Node = occupied[cell]["node"]  # <-- explicit type fixes the error
+			var node: Node = occupied[cell]["node"]  # explicit type
 			if seen.has(node):
 				continue
 			seen[node] = true
@@ -815,9 +860,11 @@ func hab_adjacent_hall_cells() -> Array[Vector2i]:
 						break
 	return out
 
+# Number of resident nodes currently in the scene.
 func current_population() -> int:
 	return residents_root.get_child_count()
 
+# Total available bed capacity from all hab modules.
 func capacity_from_habs() -> int:
 	var cap := 0
 	var seen: Dictionary = {}
@@ -829,6 +876,7 @@ func capacity_from_habs() -> int:
 			cap += int(n.get_meta("beds", 2))
 	return cap
 
+# Sum of income produced by all shops.
 func total_shop_income() -> int:
 	var inc := 0
 	var seen: Dictionary = {}
@@ -840,6 +888,7 @@ func total_shop_income() -> int:
 			inc += int(n.get_meta("income", 6))
 	return inc
 
+# Spawns a new resident at a random hab door.
 func spawn_resident() -> void:
 	var spawns := hab_adjacent_hall_cells()
 	if spawns.is_empty():
@@ -853,12 +902,14 @@ func spawn_resident() -> void:
 	inst.set("random_walk_target", Callable(self, "random_resident_target"))
 	residents_root.add_child(inst)
 
+# Applies income and upkeep each economy tick.
 func _on_economy_tick() -> void:
 	var income := total_shop_income()
 	var upkeep := current_population() * upkeep_per_resident
 	credits += (income - upkeep)
 	ui.call("set_credits", credits)
 
+# Upgrades a module, increasing its stats and cost.
 func _upgrade_module(n: Node) -> void:
 	var id: String = String(n.get_meta("id", ""))
 	var lvl: int = int(n.get_meta("level", 1))

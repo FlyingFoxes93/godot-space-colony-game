@@ -8,6 +8,8 @@ extends Node2D
 
 var approach_dir: int = 0  # 0=N,1=E,2=S,3=W (set by Main from rot)
 
+# -- Rendering -----------------------------------------------------------
+# Draws the dock pad and an arrow showing the spaceward approach direction.
 func _draw() -> void:
 	var sz: Vector2 = Vector2(float(size_cells.x * cell_size), float(size_cells.y * cell_size))
 	var rect: Rect2 = Rect2(-sz * 0.5, sz)

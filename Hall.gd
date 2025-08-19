@@ -9,10 +9,15 @@ extends Node2D
 
 var mask: int = 0  # N=1, E=2, S=4, W=8
 
+# --- Visual Updates ---
+# Sets the neighbor mask used to determine which edges of the hall are visible
+# and schedules the tile to redraw with the new state.
 func set_mask(m: int) -> void:
 	mask = m
 	queue_redraw()
 
+# Draws the corridor floor and outlines any sides that do not connect to
+# another hall segment.
 func _draw() -> void:
 	var half := cell_size * 0.5
 	var base := Rect2(Vector2(-half, -half), Vector2(cell_size, cell_size))
