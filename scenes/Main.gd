@@ -246,25 +246,26 @@ func _spawn_ship_for_dock(dock_node: Node2D) -> void:
 			ship.request_depart()
 			return
 
-		var shops := shop_hall_cells()
-		if shops.is_empty():
-			ship.request_depart()
-			return
+	var shops := shop_entry_points()
+	if shops.is_empty():
+		ship.request_depart()
+		return
 
-		var segments: Array = []
-		var prev := start_hall
-		for h in shops:
-			var seg := compute_path_cells(prev, h)
-			if seg.is_empty():
-				ship.request_depart()
-				return
-			segments.append(seg)
-			prev = h
-		var back_seg := compute_path_cells(prev, start_hall)
-		if back_seg.is_empty():
+	var segments: Array = []
+	var prev := start_hall
+	for s in shops:
+		var seg := compute_path_cells(prev, s["hall"])
+		if seg.is_empty():
 			ship.request_depart()
 			return
-		segments.append(back_seg)
+		seg.append(s["inside"])
+		segments.append(seg)
+		prev = s["hall"]
+	var back_seg := compute_path_cells(prev, start_hall)
+	if back_seg.is_empty():
+		ship.request_depart()
+		return
+	segments.append(back_seg)
 
 		var seg_world: Array = []
 		for seg in segments:
@@ -823,9 +824,9 @@ func random_resident_target() -> Dictionary:
 		return {"hall": Vector2i(0,0), "inside": Vector2i(0,0)}
 	return opts[randi() % opts.size()]
 
-# Returns hall cells adjacent to all shops for visitor routing.
-func shop_hall_cells() -> Array[Vector2i]:
-	var out: Array[Vector2i] = []
+# Returns entry points for all shops: hall cell and inside door cell.
+func shop_entry_points() -> Array:
+	var out: Array = []
 	var seen: Dictionary = {}
 	for cell in occupied.keys():
 		var rec = occupied[cell]
@@ -845,8 +846,8 @@ func shop_hall_cells() -> Array[Vector2i]:
 		var door_cell: Vector2i = origin + door_local
 		for n in _neighbors4(door_cell):
 			if hall_cells.has(n):
-				out.append(n)
-				break
+			out.append({"hall": n, "inside": door_cell})
+			break
 	return out
 
 # Returns hall cells adjacent to hab modules for spawning residents.
