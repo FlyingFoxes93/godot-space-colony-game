@@ -81,7 +81,7 @@ func _ready() -> void:
 	_update_ghost_def()
 
 	_start_timers()
-	spawn_resident()   # starting resident (comment out to start empty)
+	# spawn_resident()   # starting resident (comment out to start empty)
 
 # Positions the ghost preview and checks if placement is valid each frame.
 func _process(_dt: float) -> void:
@@ -527,6 +527,8 @@ func place(id: String, origin: Vector2i, rot: int) -> void:
 
 	_instantiate_register(id, origin, rot)
 	refresh_hall_visuals()
+	if id == "HAB" and current_population() == 0:
+		spawn_resident()
 
 # Places a module without cost or validation (used when loading saves).
 func place_from_save(id: String, origin: Vector2i, rot: int) -> void:
