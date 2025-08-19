@@ -721,34 +721,52 @@ func load_game(path: String = "user://save.json") -> void:
 func _neighbors4(c: Vector2i) -> Array[Vector2i]:
 	return [Vector2i(c.x+1,c.y), Vector2i(c.x-1,c.y), Vector2i(c.x,c.y+1), Vector2i(c.x,c.y-1)]
 
+# Returns a hall cell adjacent to the provided cell (for room doors).
+func adjacent_hall_for(cell: Vector2i) -> Vector2i:
+	for n in _neighbors4(cell):
+		if hall_cells.has(n):
+			return n
+	return cell
+
 # Breadth-first search through halls for a path between cells.
 func compute_path_cells(start: Vector2i, goal: Vector2i) -> Array[Vector2i]:
 	if start == goal:
 		return [start]
-	if not hall_cells.has(start) or not hall_cells.has(goal):
+
+	var start_in_hall := hall_cells.has(start)
+	var goal_in_hall := hall_cells.has(goal)
+	var start_hall := (start if start_in_hall else adjacent_hall_for(start))
+	var goal_hall := (goal if goal_in_hall else adjacent_hall_for(goal))
+
+	if not hall_cells.has(start_hall) or not hall_cells.has(goal_hall):
 		return []
-	var frontier: Array[Vector2i] = [start]
+
+	var frontier: Array[Vector2i] = [start_hall]
 	var came: Dictionary = {}
-	came[start] = Vector2i(-999, -999)
+	came[start_hall] = Vector2i(-999, -999)
 
 	var idx := 0
 	while idx < frontier.size():
 		var cur: Vector2i = frontier[idx]; idx += 1
-		if cur == goal: break
+		if cur == goal_hall: break
 		for n in _neighbors4(cur):
 			if not hall_cells.has(n): continue
 			if came.has(n): continue
 			came[n] = cur
 			frontier.append(n)
 	# reconstruct
-	if not came.has(goal):
+	if not came.has(goal_hall):
 		return []
-	var path: Array[Vector2i] = [goal]
-	var p := goal
+	var path: Array[Vector2i] = [goal_hall]
+	var p := goal_hall
 	while came.has(p) and came[p] != Vector2i(-999, -999):
 		p = came[p]
 		path.append(p)
 	path.reverse()
+	if not start_in_hall:
+		path.insert(0, start)
+	if not goal_in_hall:
+		path.append(goal)
 	return path
 
 # Converts a list of grid cells to world-space coordinates.

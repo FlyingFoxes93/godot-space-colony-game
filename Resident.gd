@@ -25,11 +25,8 @@ func _process(delta: float) -> void:
 		# idle: pick a new destination (hall or room)
 		if random_walk_target.is_valid() and request_new_path_cells.is_valid():
 			var data: Dictionary = random_walk_target.call()
-			var hall: Vector2i = data.get("hall", current_cell)
-			var inside: Vector2i = data.get("inside", hall)
-			var cells: Array[Vector2i] = request_new_path_cells.call(current_cell, hall)
-			if not cells.is_empty() and inside != hall:
-				cells.append(inside)
+			var dest: Vector2i = data.get("inside", current_cell)
+			var cells: Array[Vector2i] = request_new_path_cells.call(current_cell, dest)
 			_set_path_from_cells(cells)
 		return
 	var target := path_world[_target_index]
